@@ -23,6 +23,8 @@ import blogRoutes from './modules/blog/blog.routes.js';
 import courseRoutes from './modules/course/course.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 
+import { connectDB } from './config/db.js';
+
 const app = express();
 
 app.use(
@@ -31,14 +33,43 @@ app.use(
   })
 );
 
+// Dynamic CORS allowing configured CLIENT_URL, local dev, and Vercel preview domains
 app.use(
   cors({
-    origin: [ENV.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: (origin, callback) => {
+      // allow requests with no origin (like mobile apps, curl, or server-to-server)
+      if (!origin) return callback(null, true);
+
+      const allowedOrigins = [
+        ENV.CLIENT_URL,
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+      ].filter(Boolean);
+
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app');
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+
+// Auto-connect database for serverless requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
